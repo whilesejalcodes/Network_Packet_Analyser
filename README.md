@@ -1,129 +1,137 @@
 # Network Packet Analyzer
 
-A C++17-based deep packet inspection (DPI) engine for analyzing PCAP network traffic, parsing network protocols, identifying applications, and applying traffic-blocking rules.
+A C++17 deep packet inspection (DPI) engine with a web-based interface for analyzing PCAP network traffic. Upload a capture to inspect packet statistics, application classifications, and detected domains, then optionally apply traffic-blocking rules and download a filtered PCAP.
+
+**Live demo:** [network-packet-analyser.onrender.com](https://network-packet-analyser.onrender.com/)
 
 ## Features
 
-- PCAP packet reading and processing
-- Ethernet, IPv4, TCP, and UDP parsing
-- Five-tuple-based flow tracking
-- TLS SNI and HTTP Host extraction
-- Application classification
-- IP-, application-, and domain-based blocking
-- Multithreaded packet processing
-- Traffic statistics and reporting
-
-## Tech Stack
-
-- **C++17**
-- **Python**
-- **PCAP**
-- **TCP/IP**
-- **Multithreading**
-- **CMake**
+- Upload and analyze classic PCAP captures through a web dashboard
+- Parse Ethernet, IPv4, TCP, and UDP traffic
+- Track network flows and classify applications
+- Extract TLS SNI and HTTP Host information when available
+- Apply IP-, application-, and domain-based blocking rules
+- View packet totals, forwarded and dropped counts, and application statistics
+- Download the filtered capture as a PCAP file
+- Process packets with the multithreaded C++17 DPI engine
 
 ## Architecture
 
-```text
-PCAP Input
-    ↓
-Packet Parser
-    ↓
-Flow Tracking
-    ↓
-DPI / SNI Extraction
-    ↓
-Application Classification
-    ↓
-Blocking Rules
-    ↓
-Output PCAP
+```mermaid
+flowchart LR
+    P[PCAP upload] --> UI[React dashboard]
+    UI --> API[Express API]
+    API --> DPI[C++17 DPI engine]
+    DPI --> STATS[Analysis statistics]
+    DPI --> OUT[Filtered PCAP]
+    STATS --> UI
+    OUT --> DL[One-time download]
 ```
 
-## Build
+## Tech stack
 
-### Simple version
+- **Engine:** C++17, pthreads
+- **Backend:** Node.js, Express, TypeScript
+- **Frontend:** React, TypeScript, Vite
+- **Input format:** Classic PCAP
 
-```bash
-g++ -std=c++17 -O2 -I include -o dpi_simple \
-  src/main_working.cpp src/pcap_reader.cpp \
-  src/packet_parser.cpp src/sni_extractor.cpp src/types.cpp
-```
+## Run locally
 
-### Multithreaded version
+### Requirements
 
-```bash
-g++ -std=c++17 -pthread -O2 -I include -o dpi_engine \
-  src/dpi_mt.cpp src/pcap_reader.cpp \
-  src/packet_parser.cpp src/sni_extractor.cpp src/types.cpp
-```
+- Node.js and npm
+- A C++ compiler with C++17 and pthread support (`g++` on Linux)
 
-## Run
+### Install and start the development server
 
 ```bash
-./dpi_engine test_dpi.pcap output.pcap
-```
-
-To apply blocking rules:
-
-```bash
-./dpi_engine test_dpi.pcap output.pcap \
-  --block-app YouTube \
-  --block-domain facebook
-```
-
-## Web dashboard
-
-The React dashboard calls the existing multithreaded C++ engine in `src/dpi_mt.cpp`; packet analysis is not simulated in JavaScript. The engine source and its CLI behavior are unchanged.
-
-### Run locally or in the Replit preview
-
-```bash
+npm ci
 npm run dev
 ```
 
-This builds the engine into `build/dpi_engine`, then starts the React/Vite dashboard and Express API on port 5000.
+Open `http://localhost:5000` in your browser. The development command builds the DPI engine before starting the web app.
 
-### Production build and start
+### Build and run in production mode
 
 ```bash
 npm run build
 npm start
 ```
 
-The build compiles the C++ engine, type-checks the TypeScript app, compiles the server, and builds the React client. The environment needs Node.js, `g++` with C++17 and pthread support, and the existing source tree. Replit's configured deployment uses the VM target because the analysis runs a native CPU process and temporarily retains download files in the running server.
+The build compiles the native engine, checks and compiles the TypeScript server, and builds the frontend assets. The production server serves the built frontend and API.
 
-### Analysis API
+To build just the engine:
 
-`POST /api/analyze` accepts `multipart/form-data` with a `file` field and optional repeated `blockIps`, `blockApps`, and `blockDomains` fields. The backend validates a complete classic PCAP 2.4 Ethernet capture, limits uploads to 25 MiB, and limits engine execution to 60 seconds.
-
-The backend passes arguments to the fixed executable using an argument array (never a shell):
-
-```text
-build/dpi_engine <temporary-input.pcap> <unique-temporary-output.pcap> [--block-ip VALUE] [--block-app VALUE] [--block-domain VALUE]
+```bash
+npm run build:engine
 ```
 
-Only options the C++ CLI supports are sent. Statistics and application/domain lists are parsed from the engine's stdout. The output PCAP record count is checked against the engine's forwarded count before a result is returned. The response includes actual engine output and an opaque URL at `GET /api/download/:id`. That download is one-time and expires after 15 minutes; input and expired/downloaded output files are removed from temporary storage.
+## Use the DPI engine directly
 
-The engine reports an overall dropped-packet count, but does not report per-rule or per-domain drop counts. The dashboard labels configured rules as submitted to the engine and does not invent individual match totals. Domain blocking is a case-sensitive substring match; application blocking uses exact, case-sensitive engine labels. Uploads are limited to classic microsecond PCAP, not PCAPNG or nanosecond PCAP.
+After building the engine, run it with an input capture and an output path:
 
-## Project Structure
-
-```text
-├── include/                 # Header files
-├── src/                     # C++ implementation
-├── generate_test_pcap.py
-├── test_dpi.pcap
-├── CMakeLists.txt
-└── README.md
+```bash
+./build/dpi_engine test_dpi.pcap filtered.pcap
 ```
 
-The web application adds `client/`, `server/`, and `scripts/build-engine.mjs`; `CMakeLists.txt` remains the original packet-summary target and is not used by the web dashboard.
+Optional rules can be repeated:
 
-## Attribution
+```bash
+./build/dpi_engine test_dpi.pcap filtered.pcap \
+  --block-ip 192.168.1.50 \
+  --block-app YouTube \
+  --block-domain facebook
+```
 
-This repository is maintained for learning, experimentation, and further development.
+## Analysis API
 
-## Disclaimer
+### `POST /api/analyze`
+
+Accepts `multipart/form-data` with:
+
+- `file`: the PCAP capture
+- `blockIps`: optional IPv4 blocking rules
+- `blockApps`: optional application-label rules
+- `blockDomains`: optional domain-substring rules
+
+The response contains the engine's analysis statistics, application and domain information, and a `downloadUrl` for the filtered capture.
+
+### `GET /api/download/:id`
+
+Downloads the generated PCAP. Download links are one-time use and expire after 15 minutes.
+
+### `GET /api/health`
+
+Returns the API health status and accepted capture limits.
+
+## Input requirements and behavior
+
+- Accepts classic PCAP 2.4 with Ethernet link type and microsecond timestamps. PCAPNG and nanosecond-timestamp captures are not supported.
+- Maximum upload size: **25 MiB**.
+- Maximum engine run time: **60 seconds**.
+- Domain rules use case-sensitive substring matching.
+- Application rules use exact, case-sensitive engine labels.
+- The engine reports an overall dropped-packet total; it does not provide packet-drop counts for each individual rule.
+- Input and temporary output files are removed after processing, download, expiry, or server restart cleanup.
+
+## Project structure
+
+```text
+client/                 React web interface
+server/                 Express API and engine orchestration
+src/                    C++ DPI engine implementation
+include/                C++ headers
+scripts/build-engine.mjs Native engine build script
+test_dpi.pcap           Sample PCAP capture
+```
+
+## Privacy and authorized use
+
+Only analyze traffic captures you are authorized to inspect. PCAP files can contain sensitive IP addresses, hostnames, and other network data; avoid uploading sensitive captures to the public demo.
+
+## Author
+
+**Sejal Thakur**  
+[GitHub: whilesejalcodes](https://github.com/whilesejalcodes)
 
 For educational and authorized network-analysis purposes only.
