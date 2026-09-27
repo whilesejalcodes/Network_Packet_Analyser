@@ -72,6 +72,41 @@ To apply blocking rules:
   --block-domain facebook
 ```
 
+## Web dashboard
+
+The React dashboard calls the existing multithreaded C++ engine in `src/dpi_mt.cpp`; packet analysis is not simulated in JavaScript. The engine source and its CLI behavior are unchanged.
+
+### Run locally or in the Replit preview
+
+```bash
+npm run dev
+```
+
+This builds the engine into `build/dpi_engine`, then starts the React/Vite dashboard and Express API on port 5000.
+
+### Production build and start
+
+```bash
+npm run build
+npm start
+```
+
+The build compiles the C++ engine, type-checks the TypeScript app, compiles the server, and builds the React client. The environment needs Node.js, `g++` with C++17 and pthread support, and the existing source tree. Replit's configured deployment uses the VM target because the analysis runs a native CPU process and temporarily retains download files in the running server.
+
+### Analysis API
+
+`POST /api/analyze` accepts `multipart/form-data` with a `file` field and optional repeated `blockIps`, `blockApps`, and `blockDomains` fields. The backend validates a complete classic PCAP 2.4 Ethernet capture, limits uploads to 25 MiB, and limits engine execution to 60 seconds.
+
+The backend passes arguments to the fixed executable using an argument array (never a shell):
+
+```text
+build/dpi_engine <temporary-input.pcap> <unique-temporary-output.pcap> [--block-ip VALUE] [--block-app VALUE] [--block-domain VALUE]
+```
+
+Only options the C++ CLI supports are sent. Statistics and application/domain lists are parsed from the engine's stdout. The output PCAP record count is checked against the engine's forwarded count before a result is returned. The response includes actual engine output and an opaque URL at `GET /api/download/:id`. That download is one-time and expires after 15 minutes; input and expired/downloaded output files are removed from temporary storage.
+
+The engine reports an overall dropped-packet count, but does not report per-rule or per-domain drop counts. The dashboard labels configured rules as submitted to the engine and does not invent individual match totals. Domain blocking is a case-sensitive substring match; application blocking uses exact, case-sensitive engine labels. Uploads are limited to classic microsecond PCAP, not PCAPNG or nanosecond PCAP.
+
 ## Project Structure
 
 ```text
@@ -82,6 +117,8 @@ To apply blocking rules:
 ├── CMakeLists.txt
 └── README.md
 ```
+
+The web application adds `client/`, `server/`, and `scripts/build-engine.mjs`; `CMakeLists.txt` remains the original packet-summary target and is not used by the web dashboard.
 
 ## Attribution
 

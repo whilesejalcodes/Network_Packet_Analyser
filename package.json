@@ -1,0 +1,46 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "description": "A C++17-based deep packet inspection (DPI) engine for analyzing PCAP network traffic, parsing network protocols, identifying applications, and applying traffic-blocking rules.",
+  "main": "index.js",
+  "scripts": {
+    "dev": "npm run build:engine && tsx watch server/index.ts",
+    "build:engine": "node scripts/build-engine.mjs",
+    "build": "npm run build:engine && npm run check && tsc -p tsconfig.server.json && vite build",
+    "start": "cross-env NODE_ENV=production node dist/server/index.js",
+    "check": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.server.json",
+    "test": "npm run check"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/whilesejalcodes/Network_Packet_Analyser.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/whilesejalcodes/Network_Packet_Analyser/issues"
+  },
+  "homepage": "https://github.com/whilesejalcodes/Network_Packet_Analyser#readme",
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.2.0",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "express": "^5.2.1",
+    "multer": "^2.4.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
+  }
+}
